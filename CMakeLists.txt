@@ -1,8 +1,12 @@
-cmake_minimum_required(VERSION 3.30)
+cmake_minimum_required(VERSION 3.12)
+
+# Require C++20
+project(extract_fg LANGUAGES CXX)
+set(CMAKE_CXX_STANDARD 20)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 # Set the OpenCV static flag
 set(OpenCV_STATIC ON)
-
 
 # Handle OpenCV on different platforms
 if(WIN32)
@@ -20,13 +24,6 @@ endif()
 if(NOT OpenCV_FOUND)
     message(FATAL_ERROR "OpenCV not found. Please install OpenCV and make sure it's in the CMake search path.")
 endif()
-
-
-project(extract_fg LANGUAGES CXX)
-
-# Require C++20
-set(CMAKE_CXX_STANDARD 20)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 add_executable(extract_fg main.cpp)
 
