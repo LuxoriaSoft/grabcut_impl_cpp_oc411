@@ -21,6 +21,7 @@ if(NOT OpenCV_FOUND)
     message(FATAL_ERROR "OpenCV not found. Please install OpenCV and make sure it's in the CMake search path.")
 endif()
 
+
 project(extract_fg LANGUAGES CXX)
 
 # Require C++20
@@ -28,3 +29,6 @@ set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 add_executable(extract_fg main.cpp)
+
+# Link OpenCV libraries
+target_link_libraries(extract_fg PRIVATE ${OpenCV_LIBS})
