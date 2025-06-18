@@ -1,0 +1,158 @@
+name: Build GrabCut Image Segmentation Implementation (x86, x64, arm64)
+
+on:
+  pull_request:
+    types: [synchronize, opened]
+  push:
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: ["windows-2022"]
+        arch: ["x86", "x64", "arm64"]
+
+    runs-on: windows-2022
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Add msbuild to PATH
+        uses: microsoft/setup-msbuild@v2
+
+      - uses: lukka/get-cmake@latest
+
+      - name: Download OpenCV [4.11.0] source code
+        run: |
+          git clone https://github.com/opencv/opencv.git
+          cd opencv
+          git checkout tags/4.11.0
+
+      - name: Configure OpenCV with CMake for Static Library
+        shell: pwsh
+        run: |
+          cd opencv
+          mkdir build
+          cd build
+
+          # Choose the right CMake generator based on architecture
+          if ("${{ matrix.arch }}" -eq 'x86') {
+            $platform = "Win32"
+          } elseif ("${{ matrix.arch }}" -eq 'x64') {
+            $platform = "x64"
+          } else {
+            $platform = "ARM64"
+          }
+
+          if ("${{ matrix.arch }}" -eq 'arm64') {
+            Write-Host "Building for ARM64 ..."
+            cmake .. -G "Visual Studio 17 2022" -A $platform `
+              -DCMAKE_BUILD_TYPE=Release `
+              -DBUILD_SHARED_LIBS=OFF `
+              -DCMAKE_INSTALL_PREFIX=D:/opencv-install `
+              -DCMAKE_C_FLAGS="/DNDEBUG" `
+              -DCMAKE_CXX_FLAGS="/DNDEBUG" `
+              -DCMAKE_C_FLAGS_RELEASE="/DNDEBUG" `
+              -DCMAKE_CXX_FLAGS_RELEASE="/DNDEBUG" `
+              -DENABLE_SSE=OFF `
+              -DENABLE_SSE2=OFF `
+              -DENABLE_AVX=OFF `
+              -DENABLE_AVX2=OFF `
+              -DWITH_IPP=OFF `
+              -DWITH_ITT=OFF `
+              -DWITH_OPENCL=OFF `
+              -DWITH_DIRECTML=OFF `
+              -DWITH_DIRECTX=OFF `
+              -DWITH_ADE=OFF `
+              -DWITH_CAROTENE=OFF `
+              -DBUILD_EXAMPLES=OFF `
+              -DBUILD_TESTS=OFF `
+              -DBUILD_PERF_TESTS=OFF `
+              -DBUILD_DOCS=OFF
+          } else {
+            Write-Host "Building for x86 or x64 ..."
+            cmake .. -G "Visual Studio 17 2022" -A $platform `
+              -DCMAKE_BUILD_TYPE=Release `
+              -DBUILD_SHARED_LIBS=OFF `
+              -DCMAKE_INSTALL_PREFIX=D:/opencv-install `
+              -DCMAKE_C_FLAGS="/DNDEBUG" `
+              -DCMAKE_CXX_FLAGS="/DNDEBUG" `
+              -DCMAKE_C_FLAGS_RELEASE="/DNDEBUG" `
+              -DCMAKE_CXX_FLAGS_RELEASE="/DNDEBUG" `
+              -DWITH_ITT=OFF `
+              -DWITH_OPENCL=OFF `
+              -DWITH_DIRECTML=OFF `
+              -DWITH_DIRECTX=OFF `
+              -DWITH_ADE=OFF `
+              -DWITH_CAROTENE=OFF `
+              -DBUILD_EXAMPLES=OFF `
+              -DBUILD_TESTS=OFF `
+              -DBUILD_PERF_TESTS=OFF `
+              -DBUILD_DOCS=OFF
+          }
+  
+      - name: Build OpenCV Static Library
+        shell: pwsh
+        run: |
+          cd opencv/build
+          cmake --build . --config Release -- /p:Platform=${{ matrix.arch }}
+          cmake --build . --target INSTALL --config Release
+      
+      - name: Debug OpenCV Installation Folder
+        shell: pwsh
+        run: |
+          Get-ChildItem -Path D:/opencv-install -Recurse
+
+      - name: Configure Project with CMake
+        shell: pwsh
+        run: |
+          mkdir build
+          cd build
+
+          # Choose the right CMake generator based on architecture
+          if ("${{ matrix.arch }}" -eq 'x86') {
+            $platform = "Win32"
+          } elseif ("${{ matrix.arch }}" -eq 'x64') {
+            $platform = "x64"
+          } else {
+            $platform = "ARM64"
+          }
+
+          if ("${{ matrix.arch }}" -eq "x86") {
+            cmake .. -G "Visual Studio 17 2022" -A $platform -DCMAKE_BUILD_TYPE=Release `
+              -DOpenCV_DIR="D:/opencv-install" `
+              -DCMAKE_PREFIX_PATH="D:/opencv-install" `
+              -DCMAKE_C_FLAGS="/DNDEBUG" `
+              -DCMAKE_CXX_FLAGS="/DNDEBUG" `
+              -DCMAKE_C_FLAGS_RELEASE="/DNDEBUG" `
+              -DCMAKE_CXX_FLAGS_RELEASE="/DNDEBUG"
+          } else {
+            cmake .. -G "Visual Studio 17 2022" -A $platform -DCMAKE_BUILD_TYPE=Release `
+              -DOpenCV_DIR="D:/opencv-install" `
+              -DCMAKE_PREFIX_PATH="D:/opencv-install" `
+              -DCMAKE_C_FLAGS="/DNDEBUG" `
+              -DCMAKE_CXX_FLAGS="/DNDEBUG" `
+              -DCMAKE_C_FLAGS_RELEASE="/DNDEBUG" `
+              -DCMAKE_CXX_FLAGS_RELEASE="/DNDEBUG"
+          }
+
+      - name: Build Project with CMake
+        shell: pwsh
+        run: |
+          cd build
+          cmake --build . --config Release -- /p:Platform=${{ matrix.arch }}
+
+      - name: Upload Build Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: grabcut-edge-segmentation-${{ matrix.arch }}
+          path: D:\a\grabcut_impl_cpp_oc411/grabcut_impl_cpp_oc411\build\Release\
+
+# DOCS :
+# Add additional flags to the CMAKE_CXX_FLAGS variable to enable or disable specific features.
+# https://stackoverflow.com/questions/13007926/opencv-grabcut-cpp-error
+
+# Compilation on ARM64
+# https://learn.arm.com/learning-paths/laptops-and-desktops/win-opencv/2-1-build-msvc/
