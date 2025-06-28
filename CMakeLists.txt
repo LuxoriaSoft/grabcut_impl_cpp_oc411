@@ -25,7 +25,7 @@ if(NOT OpenCV_FOUND)
     message(FATAL_ERROR "OpenCV not found. Please install OpenCV and make sure it's in the CMake search path.")
 endif()
 
-add_executable(extract_fg main.cpp)
+add_library(extract_fg libgrabcut/api.cpp)
 
 # Link OpenCV libraries
 target_link_libraries(extract_fg PRIVATE ${OpenCV_LIBS})

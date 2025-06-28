@@ -147,7 +147,7 @@ jobs:
       - name: Upload Build Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: grabcut-edge-segmentation-${{ matrix.arch }}
+          name: fg-extractor-${{ matrix.arch }}
           path: D:\a\grabcut_oc4100_dllcore\grabcut_oc4100_dllcore\build\Release\
 
 # DOCS :
