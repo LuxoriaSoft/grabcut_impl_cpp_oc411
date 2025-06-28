@@ -1,175 +1,111 @@
 #include <opencv2/opencv.hpp>
 #include <opencv2/photo.hpp>
 #include <iostream>
+#include <string>
 #include <algorithm>
 
 using namespace cv;
-using namespace std;
+using std::string;
+using std::cout;
+using std::cerr;
+using std::endl;
 
-// tweak these defaults to balance speed vs. quality
-constexpr int DEFAULT_ITERS   = 5;    // default graph-cut passes
-constexpr int PAD_PIXELS      = 10;   // padding around user ROI
-
-struct AppState {
-    Mat        src, scaled, display;
-    Rect       userROI;
-    bool       roiReady = false;
-    double     scale;
-    bool       alphaOut;
-    string     outPath;
-};
-
-static void printUsage(const char* prog) {
-    cerr << "Usage:\n  " << prog
-         << " <in.jpg> [--alpha] [--scale s] [--iters n] [out.png]\n"
-            "    --alpha    output RGBA PNG\n"
-            "    --scale s  downscale factor (0.1–1.0, default 0.5)\n"
-            "    --iters n  GrabCut iterations (default " << DEFAULT_ITERS << ")\n";
+static void usage(const char* p) {
+    cerr << "Usage:\n  " << p
+         << " <in.jpg> <x> <y> <width> <height> [--margin p] [--alpha] [--scale s] [out.png]\n\n"
+            "  x, y, width, height  ROI in original image coords (mandatory)\n"
+            "  --margin p           margin percentage around ROI (0–100, default 0)\n"
+            "  --alpha              output RGBA PNG with transparent background\n"
+            "  --scale s            downscale factor (0.1–1.0, default 0.5)\n"
+            "  out.png              defaults to fg.png or fg_alpha.png\n";
 }
 
-int main(int argc, char** argv) {
-    if (argc < 2) {
-        printUsage(argv[0]);
-        return 1;
+int main(int argc, char** argv)
+{
+    if (argc < 6) { usage(argv[0]); return 1; }
+
+    string inPath = argv[1];
+    int rx = std::stoi(argv[2]);
+    int ry = std::stoi(argv[3]);
+    int rw = std::stoi(argv[4]);
+    int rh = std::stoi(argv[5]);
+
+    double marginPct = 0.0;
+    bool alphaOut = false;
+    double scale = 0.5;
+    string outPath;
+
+    for (int i = 6; i < argc; ++i) {
+        string a = argv[i];
+        if (a == "--margin" && i + 1 < argc) {
+            marginPct = std::stod(argv[++i]) / 100.0;
+            marginPct = std::max(0.0, std::min(marginPct, 1.0));
+        }
+        else if (a == "--alpha") {
+            alphaOut = true;
+        }
+        else if (a == "--scale" && i + 1 < argc) {
+            scale = std::stod(argv[++i]);
+            scale = std::max(0.1, std::min(scale, 1.0));
+        }
+        else {
+            outPath = a;
+        }
     }
 
-    AppState S;
-    S.scale    = 0.5;
-    S.alphaOut = false;
-    int iters   = DEFAULT_ITERS;
+    if (outPath.empty())
+        outPath = alphaOut ? "fg_alpha.png" : "fg.png";
 
-    S.src = imread(argv[1]);
-    if (S.src.empty()) {
-        cerr << "Error: could not load '" << argv[1] << "'\n";
+    Mat src = imread(inPath);
+    if (src.empty()) {
+        cerr << "Cannot read " << inPath << endl;
         return 2;
     }
 
-    for (int i = 2; i < argc; ++i) {
-        string a = argv[i];
-        if      (a == "--alpha") {
-            S.alphaOut = true;
-        }
-        else if (a == "--scale" && i+1<argc) {
-            S.scale = clamp(stod(argv[++i]), 0.1, 1.0);
-        }
-        else if (a == "--iters" && i+1<argc) {
-            iters = max(1, stoi(argv[++i]));
-        }
-        else {
-            S.outPath = a;
-        }
-    }
-    if (S.outPath.empty()) {
-        S.outPath = S.alphaOut ? "fg_alpha.png" : "fg.png";
+    if (marginPct > 0.0) {
+        int dw = cvRound(rw * marginPct);
+        int dh = cvRound(rh * marginPct);
+        rx = std::max(0, rx - dw);
+        ry = std::max(0, ry - dh);
+        rw = std::min(src.cols - rx, rw + 2*dw);
+        rh = std::min(src.rows - ry, rh + 2*dh);
     }
 
-    setUseOptimized(true);
-    setNumThreads(getNumberOfCPUs());
+    Mat small;
+    resize(src, small, Size(), scale, scale, INTER_AREA);
 
-    resize(S.src, S.scaled, Size(), S.scale, S.scale, INTER_AREA);
-    S.display = S.scaled.clone();
+    Rect userRoi;
+    userRoi.x      = cvRound(rx * scale);
+    userRoi.y      = cvRound(ry * scale);
+    userRoi.width  = cvRound(rw * scale);
+    userRoi.height = cvRound(rh * scale);
+    userRoi &= Rect(0, 0, small.cols, small.rows);
 
-    namedWindow("GrabCut", WINDOW_AUTOSIZE);
-
-    auto onMouse = [](int event, int x, int y, int, void* userdata) {
-        AppState& st = *reinterpret_cast<AppState*>(userdata);
-        static Point p0;
-
-        if (event == EVENT_LBUTTONDOWN) {
-            p0 = Point(x, y);
-            st.roiReady = false;
-        }
-        else if (event == EVENT_MOUSEMOVE && !st.roiReady) {
-            Mat tmp = st.scaled.clone();
-            rectangle(tmp, p0, Point(x, y), Scalar(0,255,0), 2);
-            imshow("GrabCut", tmp);
-        }
-        else if (event == EVENT_LBUTTONUP) {
-            Rect raw(p0, Point(x, y));
-            Rect bounds(0, 0, st.scaled.cols, st.scaled.rows);
-            st.userROI = raw & bounds;
-            st.roiReady = true;
-
-            st.display = st.scaled.clone();
-            rectangle(st.display, st.userROI, Scalar(0,255,0), 2);
-            imshow("GrabCut", st.display);
-        }
-    };
-
-    setMouseCallback("GrabCut", onMouse, &S);
-    imshow("GrabCut", S.display);
-
-    cout << "Draw ROI, then press ENTER/SPACE. ESC to quit.\n";
-    while (true) {
-        int k = waitKey(1);
-        if ((k == 13 || k == 32) && S.roiReady) break;
-        if (k == 27) {
-            cout << "Aborted.\n";
-            return 0;
-        }
-    }
-    destroyWindow("GrabCut");
-
-    if (S.userROI.width < 2 || S.userROI.height < 2) {
-        cerr << "Error: ROI too small.\n";
-        return 3;
-    }
-
-    Rect R = S.userROI;
-    R.x      = max(0, R.x - PAD_PIXELS);
-    R.y      = max(0, R.y - PAD_PIXELS);
-    R.width  = min(S.scaled.cols - R.x, R.width + 2*PAD_PIXELS);
-    R.height = min(S.scaled.rows - R.y, R.height + 2*PAD_PIXELS);
-
-    Mat patch    = S.scaled(R).clone();
-    // initialize all as probable background
-    Mat maskPatch(patch.size(), CV_8UC1, Scalar(GC_PR_BGD));
-    // mark inner box as probable foreground
-    Rect inner(PAD_PIXELS, PAD_PIXELS, S.userROI.width, S.userROI.height);
-    maskPatch(inner).setTo(Scalar(GC_PR_FGD));
-    maskPatch.row(0).setTo(Scalar(GC_BGD));
-    maskPatch.row(patch.rows-1).setTo(Scalar(GC_BGD));
-    maskPatch.col(0).setTo(Scalar(GC_BGD));
-    maskPatch.col(patch.cols-1).setTo(Scalar(GC_BGD));
-
-    // --- run GrabCut on the small patch ---
-    cout << "Running GrabCut (" << iters << " iterations) on ROI... " << flush;
+    Mat mask(small.size(), CV_8UC1, Scalar(GC_PR_BGD));
     Mat bgModel, fgModel;
-    try {
-        grabCut(patch, maskPatch, Rect(), bgModel, fgModel, iters, GC_INIT_WITH_MASK);
-    }
-    catch (const cv::Exception& e) {
-        cerr << "\nGrabCut failed: " << e.what() << endl;
-        return 4;
-    }
-    cout << "done.\n";
 
-    Mat fgSmall = (maskPatch == GC_FGD) | (maskPatch == GC_PR_FGD);
-    Mat fullMask = Mat::zeros(S.scaled.size(), CV_8UC1);
-    fgSmall.copyTo(fullMask(R));
+    grabCut(small, mask, userRoi, bgModel, fgModel, 5, GC_INIT_WITH_RECT);
 
-    Mat finalMask;
-    resize(fullMask, finalMask, S.src.size(), 0, 0, INTER_NEAREST);
+    Mat fgSmall = (mask == GC_FGD) | (mask == GC_PR_FGD);
+    Mat fgMask;
+    resize(fgSmall, fgMask, src.size(), 0, 0, INTER_NEAREST);
 
-    Mat outImg;
-    if (S.alphaOut) {
-        cvtColor(S.src, outImg, COLOR_BGR2BGRA);
-        for (int y = 0; y < outImg.rows; ++y) {
-            Vec4b* pRow = outImg.ptr<Vec4b>(y);
-            uchar*   mRow = finalMask.ptr<uchar>(y);
-            for (int x = 0; x < outImg.cols; ++x)
-                if (!mRow[x]) pRow[x][3] = 0;
+    Mat out;
+    if (alphaOut) {
+        cvtColor(src, out, COLOR_BGR2BGRA);
+        for (int y = 0; y < out.rows; ++y) {
+            Vec4b* pOut = out.ptr<Vec4b>(y);
+            uchar*   m    = fgMask.ptr<uchar>(y);
+            for (int x = 0; x < out.cols; ++x) {
+                if (!m[x]) pOut[x][3] = 0;
+            }
         }
     } else {
-        outImg = Mat::zeros(S.src.size(), S.src.type());
-        S.src.copyTo(outImg, finalMask);
+        out = Mat::zeros(src.size(), src.type());
+        src.copyTo(out, fgMask);
     }
 
-    if (!imwrite(S.outPath, outImg)) {
-        cerr << "Error: failed to save '" << S.outPath << "'\n";
-        return 5;
-    }
-
-    cout << "Saved result to " << S.outPath << "\n";
+    imwrite(outPath, out);
+    cout << "Saved " << outPath << endl;
     return 0;
 }
