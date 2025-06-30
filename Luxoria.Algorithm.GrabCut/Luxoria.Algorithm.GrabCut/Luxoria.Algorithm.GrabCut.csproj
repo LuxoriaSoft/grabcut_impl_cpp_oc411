@@ -1,0 +1,46 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net8.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+  
+  <ItemGroup>
+	<Folder Include="NativeLibraries\" />
+  </ItemGroup>
+
+  <PropertyGroup>
+	<AssemblyName>Luxoria.Algorithm.GrabCut</AssemblyName>
+	<RootNamespace>Luxoria.Algorithm.GrabCut</RootNamespace>
+	<GeneratePackageOnBuild>true</GeneratePackageOnBuild>
+
+	<PackageId>Luxoria.Algorithm.GrabCut</PackageId>
+	<Description>OpenCV GrabCut Implementation encapsulated in .NET Nuget</Description>
+	<Version>1.0.0</Version>
+	<Authors>LuxoriaSoft</Authors>
+	<RepositoryType>git</RepositoryType>
+	<PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
+	<OutputPath>bin\NuGet</OutputPath>
+	<PackageIcon>logo128x128.png</PackageIcon>
+	<PackageReadmeFile>README.md</PackageReadmeFile>
+  </PropertyGroup>
+
+
+  <ItemGroup>
+	<EmbeddedResource Include="NativeLibraries\arm64\extract_fg.dll" LogicalName="Luxoria.Algorithm.GrabCut.NativeLibraries.arm64.extract_fg.dll" />
+	<EmbeddedResource Include="NativeLibraries\x64\extract_fg.dll" LogicalName="Luxoria.Algorithm.GrabCut.NativeLibraries.x64.extract_fg.dll" />
+	<EmbeddedResource Include="NativeLibraries\x86\extract_fg.dll" LogicalName="Luxoria.Algorithm.GrabCut.NativeLibraries.x86.extract_fg.dll" />
+  </ItemGroup>
+
+  <ItemGroup>
+	<None Include="..\..\logo128x128.png">
+		<Pack>True</Pack>
+		<PackagePath>\</PackagePath>
+	</None>
+	<None Include="..\..\README.md">
+		<Pack>True</Pack>
+		<PackagePath>\</PackagePath>
+	</None>
+  </ItemGroup>
+</Project>
