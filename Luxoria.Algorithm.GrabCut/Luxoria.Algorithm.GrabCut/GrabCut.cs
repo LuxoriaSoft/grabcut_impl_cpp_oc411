@@ -1,4 +1,5 @@
-﻿using System.Reflection;
+﻿using System.Drawing;
+using System.Reflection;
 using System.Runtime.InteropServices;
 
 namespace Luxoria.Algorithm.GrabCut;
@@ -10,9 +11,19 @@ public class GrabCut
     static GrabCut()
         => ExtractAndLoadNativeLibrary();
 
-    public void Exec(string inputFile, string outputfile, int x, int y, int width, int height, int margin = 0)
+    public void Exec(string inputFile, string outputfile, int x, int y, int width, int height, int margin = 0, bool color = true, Color? foreground = null, Color? background = null)
     {
-        int status = grabcut_exec(inputFile, outputfile, x, y, width, height, margin);
+        if (!color && (foreground == null || background == null))
+            throw new ArgumentException("Foreground and background colors must be provided when alive color is disabled");
+
+        int fR = foreground?.R ?? 0;
+        int fG = foreground?.G ?? 0;
+        int fB = foreground?.B ?? 0;
+        int bR = background?.R ?? 0;
+        int bG = background?.G ?? 0;
+        int bB = background?.B ?? 0;
+
+        int status = grabcut_exec(inputFile, outputfile, x, y, width, height, margin, color, fR, fG, fB, bR, bG, bB);
 
         if (status != 0)
         {
@@ -23,7 +34,8 @@ public class GrabCut
     #region P/Invoke DLL Loader System
 
     [DllImport(NativeLibraryName, CallingConvention = CallingConvention.Cdecl)]
-    private static extern int grabcut_exec(string imagePath, string outputFile, int x, int y, int width, int height, int margin);
+    private static extern int grabcut_exec(string imagePath, string outputFile, int x, int y, int width, int height, int margin,
+        bool color, int fR, int fG, int fB, int bR, int bG, int bB);
 
     /// <summary>
     /// Extracts and loads the library from embedded resources depending on the Runtime arch

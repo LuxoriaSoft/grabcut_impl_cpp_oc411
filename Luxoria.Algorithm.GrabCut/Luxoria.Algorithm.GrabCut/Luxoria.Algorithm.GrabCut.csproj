@@ -17,7 +17,7 @@
 
 	<PackageId>Luxoria.Algorithm.GrabCut</PackageId>
 	<Description>OpenCV GrabCut Implementation encapsulated in .NET Nuget</Description>
-	<Version>1.0.0</Version>
+	<Version>1.0.1</Version>
 	<Authors>LuxoriaSoft</Authors>
 	<RepositoryType>git</RepositoryType>
 	<PackageLicenseExpression>Apache-2.0</PackageLicenseExpression>
