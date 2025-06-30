@@ -13,9 +13,12 @@ GRABCUT_API int grabcut_exec(
     const int   ry,
     const int   rw,
     const int   rh,
-    const int   margin
+    const int   margin,
+    bool color,
+    int fR, int fG, int fB,
+    int bR, int bG, int bB
 ) {
-    Mat src = imread(imagePath, IMREAD_COLOR);
+    Mat src = imread(imagePath);
     if (src.empty()) {
         return -1;
     }
@@ -50,11 +53,18 @@ GRABCUT_API int grabcut_exec(
     Mat fgMask;
     resize(fgSmall, fgMask, src.size(), 0, 0, INTER_NEAREST);
 
-    Mat out = Mat::zeros(src.size(), src.type());
-    src.copyTo(out, fgMask);
+    Mat out;
+    
+    if (color) {
+        out = Mat::zeros(src.size(), src.type());
+        src.copyTo(out, fgMask);
+    } else {
+        out = Mat(src.size(), src.type(), Scalar(bR, bG, bB));
+        out.setTo(Scalar(fR, fG, fB), fgMask);
+    }
 
     if (!imwrite(outPath, out)) {
-        return -1;
+        return -2;
     }
 
     return 0;

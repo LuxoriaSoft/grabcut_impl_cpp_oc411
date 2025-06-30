@@ -10,5 +10,8 @@ GRABCUT_API int grabcut_exec(
     const char* outPath,
     const int x, const int y,
     const int width, const int height,
-    const int margin
+    const int margin,
+    bool color,
+    int fR, int fG, int fB,
+    int bR, int bG, int bB
 );
